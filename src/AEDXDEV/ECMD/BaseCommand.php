@@ -55,7 +55,8 @@ abstract class BaseCommand extends Command {
     string $name,
     array $arguments,
     callable $callback,
-    ?string $permission = null
+    ?string $permission = null,
+    bool $console
   ): void{
     foreach ($arguments as $arg) {
       if (!$arg instanceof BaseArgument) {
@@ -65,7 +66,8 @@ abstract class BaseCommand extends Command {
     $this->subCommands[$name] = [
       "callback" => $callback,
       "permission" => $permission,
-      "arguments" => $arguments
+      "arguments" => $arguments,
+      "console" => $console
     ];
   }
 
@@ -151,6 +153,10 @@ abstract class BaseCommand extends Command {
         if ($subData["permission"] && !$sender->hasPermission($subData["permission"])) {
           $this->sendPermissionError();
           return false;
+        }
+        if (!($sender instanceof Player && !$subData["console"])) {
+          $sender->sendMessage("Use this command in-game");
+          return;
         }
         return $this->parseAndExecute($subData, $args);
       }

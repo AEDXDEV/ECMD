@@ -1,6 +1,6 @@
 {
   "name": "aedxdev/ecmd",
-  "description": "A Command Framework virion for PocketMine-MP ",
+  "description": "design your command like Commando lib but easier (best choice for making cores)",
   "type": "library",
   "license": "LGPL-3.0-only",
   "autoload": {
