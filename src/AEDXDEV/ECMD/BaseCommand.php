@@ -184,41 +184,55 @@ abstract class BaseCommand extends Command {
           $sender->sendMessage("Use this command in-game");
           return false;
         }
-        return $this->parseAndExecute($subData, $args);
+        return $this->parseAndExecute($subData, $label, $args);
       }
     }
     // Handle main command arguments
     if (!empty($this->arguments)) {
       return $this->parseAndExecute([
         "arguments" => $this->arguments,
-        "callback" => fn($sender_, $args_) => $this->onRun($sender_, $label, $args_)
-      ], $args);
+        "callback" => fn($sender_, $label_, $args_) => $this->onRun($sender_, $label_, $args_)
+      ], $label, $args);
     }
     // No arguments required
     $this->onRun($sender, $label, []);
     return true;
   }
 
-  private function parseAndExecute(array $data, array $args): bool{
+  private function parseAndExecute(array $data, string $label, array $args): bool{
     $sender = $this->currentSender;
     $parsed = [];
-    foreach ($data["arguments"] as $pos => $arg) {
-      $value = array_shift($args);
-      if ($value === null && !$arg->isOptional()) {
-        $sender->sendMessage("§cMissing required argument: §7" . $arg->getName());
-        return false;
-      }
-      if ($value !== null && !$arg->canParse($value, $sender)) {
-        $sender->sendMessage("§cInvalid value for: §7" . $arg->getName());
-        return false;
-      }
-      $parsed[$arg->getName()] = $arg->parse($value ?? "", $sender);
+    $offset = 0;
+    $required = 0;
+    foreach ($data["arguments"] as $arg) {
+      if (!$arg->isOptional())$required++;
     }
-    if (!empty($args)) {
+    foreach ($data["arguments"] as $pos => $arg) {
+      $span = $arg->getSpanLength();
+      $values = array_slice($args, $offset, $span);
+      if (count($values) < $span && !$arg->isOptional()) {
+        $sender->sendMessage("§cMissing required argument: §7{$arg->getName()} (needs {$span} values)");
+        return false;
+      }
+      if (count($values) < $span && $arg->isOptional())break;
+      $valueStr = implode(" ", $values);
+      if (!$arg->canParse($valueStr, $sender)) {
+        $sender->sendMessage("§cInvalid value for: §7{$arg->getName()}");
+        return false;
+      }
+      $parsed[$arg->getName()] = $arg->parse($valueStr, $sender);
+      $offset += $span;
+      if (!$arg->isOptional())$required--;
+    }
+    if ($offset < count($args)) {
       $sender->sendMessage("§cToo many arguments provided");
       return false;
     }
-    $data["callback"]($sender, $parsed);
+    if ($required > 0) {
+      $sender->sendMessage("§cMissing required arguments");
+      return false;
+    }
+    $data["callback"]($sender, $label, $parsed);
     return true;
   }
 
