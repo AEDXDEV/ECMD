@@ -39,12 +39,13 @@ use pocketmine\network\mcpe\protocol\types\command\CommandEnum;
 use pocketmine\network\mcpe\protocol\types\command\CommandOverload;
 use pocketmine\plugin\Plugin;
 use pocketmine\player\Player;
+use pocketmine\plugin\PluginOwned;
 
 use AEDXDEV\ECMD\args\BaseArgument;
 
 use muqsit\simplepackethandler\SimplePacketHandler;
 
-abstract class BaseCommand extends Command {
+abstract class BaseCommand extends Command implements PluginOwned{
 
   private static bool $isIntercepting = false;
 
@@ -237,4 +238,9 @@ abstract class BaseCommand extends Command {
   public function getUsageMessage(): string{
 		return $this->getUsage();
 	}
+
+	public function getOwningPlugin(): Plugin{
+    return $this->plugin;
+  }
+
 }
