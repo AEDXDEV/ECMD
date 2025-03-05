@@ -11,7 +11,7 @@ use pocketmine\command\CommandSender;
 use pocketmine\world\Position;
 
 use AEDXDEV\ECMD\BaseCommand;
-use AEDXDEV\ECMD\args{
+use AEDXDEV\ECMD\args\{
   StringArgument,
   TextArgument,
   BoolArgument,
@@ -44,8 +44,8 @@ class MyCommand extends BaseCommand {
         new TextArgument("message")
       ],
       function(CommandSender $sender, array $args) {
-        $target = $this->getServer()->getPlayerExact($args["player"]);
-        $target?->sendMessage($sender->getName() . " §eSent to you a message'§7" . $args["message"] . "§e'");
+        $target = $sender->getServer()->getPlayerExact($args["player"]);
+        $target?->sendMessage($sender->getName() . " §eSent to you a message: §7" . $args["message"] . "§e");
       },
       "command.msg",
       true // Player, Console
@@ -56,13 +56,20 @@ class MyCommand extends BaseCommand {
     // Main command logic
     $target = $this->getServer()->getPlayerByPrefix($args["player"]);
     if($args["say_hello"]) {
-      $target?->sendMessage($sender->getNane() . " §bwelcomes you");
+      $target?->sendMessage($sender->getName() . " §bwelcomes you");
     }
   }
 }
 ```
 ---
 
+## Examples
+<p align="center">
+  <img src="Examples/Example1.png" width="45%">
+  <img src="Examples/Example2.png" width="45%">
+</p>
+
+---
 
 ## 📚 Argument Types
 | Type             | Class                      | Example           |
@@ -81,3 +88,10 @@ class MyCommand extends BaseCommand {
 This project is licensed under the [GPL-3.0 License](LICENSE).
 
 ---
+
+## YouTube
+- @AEDXDEV
+- https://youtube.com/@aedxdev?si=hGoo2eohlFlFbBNu
+
+## Discord
+- aedxdev

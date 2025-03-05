@@ -38,12 +38,15 @@ use pocketmine\network\mcpe\protocol\types\command\CommandParameter;
 use pocketmine\network\mcpe\protocol\types\command\CommandEnum;
 use pocketmine\network\mcpe\protocol\types\command\CommandOverload;
 use pocketmine\plugin\Plugin;
+use pocketmine\player\Player;
 
 use AEDXDEV\ECMD\args\BaseArgument;
 
 use muqsit\simplepackethandler\SimplePacketHandler;
 
 abstract class BaseCommand extends Command {
+
+  private static bool $isIntercepting = false;
 
   private array $subCommands = [];
   private array $arguments = [];
@@ -116,56 +119,43 @@ abstract class BaseCommand extends Command {
       }
       $usages[] = $subUsage;
     }
-    $this->usageMessage = implode("\n - ", array_unique($usages));
+    $this->usageMessage = implode("\n - ", $usages);
   }
 
   private function registerPacketHook(): void{
-    $handler = SimplePacketHandler::createInterceptor($this->plugin);
-    $handler->interceptOutgoing(function(AvailableCommandsPacket $pk, NetworkSession $session) {
-      if (($player = $session->getPlayer()) == null)return true;
-      $createParam = function (BaseArgument $arg): CommandParameter{
-        $param = new CommandParameter();
-        $param->paramName = $arg->getName();
-        $param->paramType = $arg->getNetworkType();
-        $param->isOptional = $arg->isOptional();
-        return $param;
-      };
+    SimplePacketHandler::createInterceptor($this->plugin)->interceptOutgoing(function(AvailableCommandsPacket $pk, NetworkSession $session): bool{
+      if (($player = $session->getPlayer()) === null)return true;
       foreach ($pk->commandData as $cmdName => $cmdData) {
         if ($cmdName === $this->getName()) {
-          $overloads = [];
-          // Main command overload
-          if (!empty($this->arguments)) {
-            $params = array_map(fn($arg) => $createParam($arg), $this->arguments);
-            $overloads[] = new CommandOverload(false, $params);
-          }
-          // Subcommands overload
-          foreach ($this->subCommands as $subName => $data) {
-            if ($data["permission"] && !$player->hasPermission($data["permission"]))continue;
-            $params = array_map(fn($arg) => $createParam($arg), $data["arguments"]);
-            array_unshift($params, $this->createSubParam($subName));
-            $overloads[] = new CommandOverload(false, $params);
-          }
-          $cmdData->overloads = $overloads;
+          $cmdData->overloads = $this->generateOverloads($player);
         }
       }
+      $pk->softEnums = [];
       return true;
     });
   }
 
-  private function createSubParam(string $name): CommandParameter{
-    $param = new CommandParameter();
-    $param->paramName = $name;
-    $param->paramType = AvailableCommandsPacket::ARG_FLAG_ENUM | AvailableCommandsPacket::ARG_FLAG_VALID;
-    $enum = new CommandEnum($name, [$name]);
-    $refClass = new \ReflectionClass(CommandEnum::class);
-    $refProp = $refClass->getProperty("enumName");
-    $refProp->setAccessible(true);
-    try {
-      $refProp->setValue($enum, "enum#" . spl_object_id($enum));
-    } finally {
-      $refProp->setAccessible(false);
+  private function generateOverloads(Player $player): array{
+    $subOverloads = [];
+    foreach ($this->subCommands as $name => $data) {
+      if (!$data["permission"] || $player->hasPermission($data["permission"])) {
+        $enum = new CommandEnum($name, [$name]);
+        (fn() => $this->enumName = "enum#" . spl_object_id($enum))->call($enum);
+        $param = CommandParameter::enum($name, $enum, 0, false);
+        $subOverloads[] = new CommandOverload(false, [$param, ...array_map([$this, 'createArgumentParam'], $data["arguments"])]);
+      }
     }
-    $param->enum = $enum;
+    return array_merge(
+      empty($this->arguments) ? [] : [new CommandOverload(false, array_map([$this, 'createArgumentParam'], $this->arguments))],
+      $subOverloads
+    );
+  }
+
+  private function createArgumentParam(BaseArgument $arg): CommandParameter{
+    $param = clone $arg->getNetworkParameterData();
+    if ($param->enum) {
+      (fn() => $this->enumName = "enum#" . spl_object_id($param->enum))->call($param->enum);
+    }
     return $param;
   }
 
@@ -203,20 +193,14 @@ abstract class BaseCommand extends Command {
     $sender = $this->currentSender;
     $parsed = [];
     $offset = 0;
-    $required = 0;
-    foreach ($data["arguments"] as $arg) {
-      if (!$arg->isOptional())$required++;
-    }
+    $required = array_sum(array_map(fn(BaseArgument $arg) => $arg->isOptional() ? 0 : 1, $data["arguments"]));
     foreach ($data["arguments"] as $pos => $arg) {
-      $span = $arg->getSpanLength();
-      $values = array_slice($args, $offset, $span);
-      if (count($values) < $span && !$arg->isOptional()) {
+      if (count($values = array_slice($args, $offset, $span = $arg->getSpanLength())) < $span && !$arg->isOptional()) {
         $sender->sendMessage("§cMissing required argument: §7{$arg->getName()} (needs {$span} values)");
         return false;
       }
       if (count($values) < $span && $arg->isOptional())break;
-      $valueStr = implode(" ", $values);
-      if (!$arg->canParse($valueStr, $sender)) {
+      if (!$arg->canParse(($valueStr = implode(" ", $values)), $sender)) {
         $sender->sendMessage("§cInvalid value for: §7{$arg->getName()}");
         return false;
       }
@@ -246,7 +230,7 @@ abstract class BaseCommand extends Command {
 
   abstract public function onRun(CommandSender $sender, string $aliasUsed, array $args): void;
 
-  private function sendUsage(CommandSender $sender): void {
+  private function sendUsage(): void{
     $this->currentSender?->sendMessage("Usage: " . $this->getUsage());
   }
 
