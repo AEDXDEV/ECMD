@@ -65,8 +65,7 @@ class MyCommand extends BaseCommand {
 
 ## Examples
 <p align="center">
-  <img src="Examples/Example1.png" width="45%">
-  <img src="Examples/Example2.png" width="45%">
+  <img src="https://raw.githubusercontent.com/AEDXDEV/ECMD/main/example/Example.png" height="64" width="64">
 </p>
 
 ---
