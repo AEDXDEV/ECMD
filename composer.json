@@ -1,0 +1,20 @@
+{
+  "name": "aedxdev/ecmd",
+  "description": "design your command like Commando lib but easier — the best choice for making cores with dynamic enums and advanced subcommand control.",
+  "type": "library",
+  "license": "LGPL-3.0-only",
+  "autoload": {
+    "psr-4": {
+      "AEDXDEV\\ECMD\\": ["src\\AEDXDEV\\ECMD\\"]
+    }
+  },
+  "require": {
+    "pocketmine/pocketmine-mp": "^5.0.0"
+  },
+  "extra": {
+    "virion": {
+      "spec": "3.0",
+      "namespace-root": "AEDXDEV\\ECMD"
+    }
+  }
+}

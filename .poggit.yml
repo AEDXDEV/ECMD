@@ -1,0 +1,12 @@
+--- # Poggit-CI Manifest. Open the CI at https://poggit.pmmp.io/ci/AEDXDEV/TeleportTo
+build-by-default: true
+branches:
+- main
+projects:
+  TeleportTo:
+    path: ""
+    icon: icon.png
+    libs:
+      - src: AEDXDEV/ECMD/ECMD
+        version: ^1.1.1
+...
