@@ -1,12 +1,10 @@
---- # Poggit-CI Manifest. Open the CI at https://poggit.pmmp.io/ci/AEDXDEV/TeleportTo
+--- # Poggit-CI Manifest. Open the CI at https://poggit.pmmp.io/ci/AEDXDEV/ECMD
 build-by-default: true
 branches:
 - main
 projects:
-  TeleportTo:
+  ECMD:
     path: ""
-    icon: icon.png
-    libs:
-      - src: AEDXDEV/ECMD/ECMD
-        version: ^1.1.1
+    model: virion
+    type: library
 ...
