@@ -9,7 +9,8 @@
     }
   },
   "require": {
-    "pocketmine/pocketmine-mp": "^5.0.0"
+    "pocketmine/pocketmine-mp": "^5.0.0",
+    "muqsit/simple-packet-handler": "0.1.5"
   },
   "extra": {
     "virion": {
