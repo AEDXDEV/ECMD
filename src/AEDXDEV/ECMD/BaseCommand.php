@@ -162,7 +162,7 @@ abstract class BaseCommand extends Command implements PluginOwned{
     if ($position > 0 && !isset($this->arguments[$position - 1])) {
       throw new InvalidArgumentException("Argument at position $position requires previous arguments");
     }
-    if ($this->arguments[$position - 1]->isOptional() && !$argument->isOptional()) {
+    if (isset($this->arguments[$position - 1]) && $this->arguments[$position - 1]->isOptional() && !$argument->isOptional()) {
       throw new LogicException("Cannot register required argument after optional");
     }
     $this->arguments[$position] = $argument;
