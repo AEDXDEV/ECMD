@@ -160,31 +160,6 @@ abstract class BaseCommand extends Command implements PluginOwned{
   }*/
 
   public function registerTask(): void{
-    if (self::$registeredTask) return;
-
-    $this->plugin->getScheduler()->scheduleRepeatingTask(new ClosureTask(function(): void{
-        // ✅ تحدّث كل arguments الديناميكية المسجلة فقط
-        foreach (\AEDXDEV\ECMD\args\StringEnumArgument::getDynamicClasses() as $class) {
-            if (method_exists($class, 'tick')) {
-                try {
-                    $class::tick();
-                } catch (\Throwable $e) {
-                    // نتجاهل الأخطاء داخل tick الفردية
-                    $this->plugin->getLogger()->debug("Tick error in $class: " . $e->getMessage());
-                }
-            }
-        }
-
-        // تحديث الـ commands عند كل لاعب
-        foreach (\pocketmine\Server::getInstance()->getOnlinePlayers() as $p) {
-            $p->getNetworkSession()->syncAvailableCommands();
-        }
-    }), 20 * 5);
-
-    self::$registeredTask = true;
-}
-
-  public function registerTask(): void{
 		if (self::$registeredTask)return;
     $this->plugin->getScheduler()->scheduleRepeatingTask(new ClosureTask(function(): void{
       // update dynamic enums
