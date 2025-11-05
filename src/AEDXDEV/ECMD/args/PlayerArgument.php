@@ -37,19 +37,23 @@ use pocketmine\Server;
 class PlayerArgument extends StringEnumArgument{
 
   public function getTypeName(): string{
-    return "player";
+    return "string";
   }
 
   public function canParse(string $testString, CommandSender $sender): bool{
-    return Server::getInstance()->getPlayerExact($testString) !== null;
+    return Server::getInstance()->getPlayerExact(str_replace('"', '', $testString)) !== null;
   }
 
   public function getValue(string $string): mixed{
-    return Server::getInstance()->getPlayerExact(str_replace("\n", "", $string));
+    return Server::getInstance()->getPlayerExact(str_replace('"', '', $string));
   }
   
   public static function tick(): void{
-    $players = array_map(fn(Player $p) => str_contains($p->getName(), " ") ? "\"{$p->getName()}\"" : $p->getName(), Server::getInstance()->getOnlinePlayers());
+    $players = array_map(
+      fn(Player $p) => str_contains($p->getName(), " ") ? ("\"" . $p->getName() . "\"") : $p->getName(),
+      Server::getInstance()->getOnlinePlayers()
+    );
     static::$VALUES = array_combine($players, $players);
+    parent::tick();
   }
 }

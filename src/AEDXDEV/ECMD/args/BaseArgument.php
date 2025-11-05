@@ -70,6 +70,6 @@ abstract class BaseArgument{
 	abstract public function getTypeName(): string;
 	
 	public function getNetworkParameterData(): CommandParameter{
-		return $this->parameterData;
-	}
+    return $this->parameterData;
+  }
 }

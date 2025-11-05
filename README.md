@@ -1,84 +1,218 @@
 # ECMD
-design your command like Commando lib but easier — the best choice for making cores with dynamic enums and advanced subcommand control.
+design your command like Commando lib but easier — the best choice for making cores with *dynamic enums* and *advanced subcommand control*.
 
 ## ✅ Features
-- Clean subcommand system with permission & sender type constraints.
-- Support for dynamic argument values (players, items, worlds...).
-- Automatic command packet syncing using task-based or packet intercept method.
-- Enum autocompletion via `getEnumValues()` dynamically updated every 5 seconds.
+- 💡 Clean *subcommand system* with permission & sender type constraints per subcommand (Player-only, Console-only, or Both).
+- ⚙️ *Dynamic arguments* that update automatically (players, worlds…).
+- 🔄 Built-in *command packet sync* using PocketMine’s new `AvailableCommandsPacketAssembler`.
+- 🧩 *SoftEnum autocompletion* — dynamically refreshed every 5 seconds.
+
+🧱 Fully compatible with *PocketMine-MP v5.36+* (new command packet architecture).
 
 ---
 
 ## 🛠️ Basic Usage
+
+### 1) Basic Arguments (no subcommands)
 ```php
 <?php
 
 namespace Author\Plugin;
 
 use pocketmine\command\CommandSender;
-use pocketmine\world\Position;
-
 use AEDXDEV\ECMD\BaseCommand;
 use AEDXDEV\ECMD\args\{
-  StringArgument,
+  RawStringArgument,
+  IntegerArgument,
+  BooleanArgument
+};
+
+class GreetCommand extends BaseCommand {
+  protected function prepare(): void{
+    // /greet <player:string> [times:int] [shout:bool]
+    $this->registerArgument(0, new RawStringArgument("player"));
+    $this->registerArgument(1, new IntegerArgument("times", true));
+    $this->registerArgument(2, new BooleanArgument("shout", true));
+  }
+
+  public function onRun(CommandSender $sender, string $label, array $args): void{
+    $targetName = $args["player"];
+    $times = $args["times"] ?? 1;
+    $shout = $args["shout"] ?? false;
+    $msg = "Hello, {$targetName}!";
+    if ($shout) {
+      $msg = "§l" . strtoupper($msg) . "§r";
+    }
+    for ($i = 0; $i < max(1, $times); $i++) {
+      $sender->sendMessage($msg);
+    }
+  }
+}
+```
+
+---
+
+### 2) Subcommands (permissions & constraints)
+```php
+<?php
+
+namespace Author\Plugin;
+
+use pocketmine\command\CommandSender;
+use pocketmine\player\Player;
+use AEDXDEV\ECMD\BaseCommand;
+use AEDXDEV\ECMD\args\{
+  RawStringArgument,
   TextArgument,
-  BoolArgument,
+  IntegerArgument,
   Vector3Argument
 };
 
-class MyCommand extends BaseCommand {
-
+class ArenaCommand extends BaseCommand {
   protected function prepare(): void{
-    // Register main command arguments
-    $this->registerArgument(0, new StringArgument("player"));
-    $this->registerArgument(1, new BoolArgument("say_hello", true));
-    
-    // Register sub-command
+    // /arena join <player:string>
     $this->registerSubCommand(
-      "tp",
-      [
-        new Vector3Argument("position")
-      ],
+      "join",
+      [new RawStringArgument("player")],
       function(CommandSender $sender, array $args): void{
-        $sender->teleport($args["position"]);
+        $p = $sender->getServer()->getPlayerExact($args["player"]);
+        $p?->sendMessage("§aYou joined the arena!");
       },
-      "command.tp",
-      BaseCommand::IN_GAME_CONSTRAINT // Only Player
+      "arena.join",
+      BaseCommand::ALL_CONSTRAINT // console & player
     );
 
+    // /arena setspawn <x y z>
     $this->registerSubCommand(
-      "msg",
-      [
-        new StringArgument("player"),
-        new TextArgument("message")
-      ],
+      "setspawn",
+      [new Vector3Argument("position")],
       function(CommandSender $sender, array $args): void{
-        $target = $sender->getServer()->getPlayerExact($args["player"]);
-        $target?->sendMessage($sender->getName() . " §eSent to you a message: §7" . $args["message"] . "§e");
-      },
-      "command.msg",
-      BaseCommand::ALL_CONSTRAINT // Both Player & Console
-    );
-    $this->registerSubCommand(
-      "broadcast",
-      [
-        new TextArgument("message")
-      ],
-      function(CommandSender $sender, array $args): void{
-        foreach ($sender->getServer()->getOnlinePlayers() as $p) {
-          $p->sendMessage($args["message"]);
+        if ($sender instanceof Player) {
+          $sender->teleport($args["position"]);
+          $sender->sendMessage("§aSpawn set & teleported.");
         }
       },
-      "command.broadcast",
-      BaseCommand::CONSOLE_CONSTRAINT // Only Console
+      "arena.setspawn",
+      BaseCommand::IN_GAME_CONSTRAINT // player only
+    );
+
+    // /arena start [countdown:int]
+    $this->registerSubCommand(
+      "start",
+      [new IntegerArgument("countdown", true)],
+      function(CommandSender $sender, array $args): void{
+        $cd = $args["countdown"] ?? 5;
+        $sender->getServer()->broadcastMessage("§eArena starts in §6{$cd}§e...");
+      },
+      "arena.start",
+      BaseCommand::CONSOLE_CONSTRAINT // console only
     );
   }
 
   public function onRun(CommandSender $sender, string $label, array $args): void{
-    $target = $this->getServer()->getPlayerByPrefix($args["player"]);
-    if($args["say_hello"]) {
-      $target?->sendMessage($sender->getName() . " §bwelcomes you");
+    $sender->sendMessage("§7Usage: /arena <join|setspawn|start> ...");
+  }
+}
+```
+
+---
+
+### 3) Custom Argument (StringEnumArgument)
+```php
+<?php
+
+namespace Author\Plugin;
+
+use pocketmine\command\CommandSender;
+use AEDXDEV\ECMD\BaseCommand;
+use AEDXDEV\ECMD\args\{
+  StringEnumArgument,
+  TextArgument
+  };
+
+class ColorArgument extends StringEnumArgument {
+  // value => mapped result
+  protected static array $VALUES = [
+    "red"   => "§c",
+    "green" => "§a",
+    "blue"  => "§9",
+    "gold"  => "§6",
+  ];
+
+  public function getTypeName(): string{
+    return "color";
+  }
+}
+
+class ColorSayCommand extends BaseCommand {
+  protected function prepare(): void{
+    // /colorsay <color:red|green|blue|gold> <text...>
+    $this->registerArgument(0, new ColorArgument("color"));
+    $this->registerArgument(1, new TextArgument("text"));
+  }
+
+  public function onRun(CommandSender $sender, string $label, array $args): void{
+    $color = $args["color"]; // returns the mapped code like "§c"
+    $text  = $args["text"];
+    $sender->sendMessage($color . $text);
+  }
+}
+```
+
+---
+
+### 4) Dynamic Argument (auto-updating enum)
+
+> The values are updated automatically every 5 seconds by the BaseCommand (you don't need to set up the Scheduler yourself).
+
+```php
+<?php
+
+namespace Author\Plugin;
+
+use pocketmine\command\CommandSender;
+use pocketmine\player\Player;
+use pocketmine\Server;
+use AEDXDEV\ECMD\BaseCommand;
+use AEDXDEV\ECMD\args\StringEnumArgument;
+
+class PlayerArgument extends StringEnumArgument {
+  public function getTypeName(): string{
+    return "string";
+  }
+
+  public function canParse(string $testString, CommandSender $sender): bool{ // Is valid value 
+    return Server::getInstance()->getPlayerExact($testString) !== null;
+  }
+
+  public function getValue(string $string): mixed{ // Return the requested value when using $args["player"];
+    return Server::getInstance()->getPlayerExact($string);
+  }
+
+  public static function tick(): void{
+    // keys = what players see in autocomplete, values = what parse() returns
+    $names = array_map(fn (Player $p) => $p->getName(), Server::getInstance()->getOnlinePlayers());
+    static::$VALUES = array_combine($names, $names);
+    // this will push the new list into the soft enum used by the client
+    parent::tick();
+  }
+}
+
+class TptoCommand extends BaseCommand {
+  protected function prepare(): void{
+    // /tpto <player:string>
+    $this->registerArgument(0, new PlayerArgument("player"));
+  }
+
+  public function onRun(CommandSender $sender, string $label, array $args): void{
+    if (!$sender instanceof Player) {
+      $sender->sendMessage("§cPlayer only.");
+      return;
     }
+    $target = $sender->getServer()->getPlayerExact($args["player"]);
+    if($target === null){ $sender->sendMessage("§cPlayer not found."); return; }
+    $sender->teleport($target->getLocation());
+    $sender->sendMessage("§aTeleported to §e" . $target->getName());
   }
 }
 ```
@@ -87,7 +221,13 @@ class MyCommand extends BaseCommand {
 
 ## ⚙️ Dynamic Argument Support
 
-- `PlayerArgument`, `ItemArgument`, and `WorldArgument` now support dynamic updating every 5 seconds using:
+*PlayerArgument* and *WorldArgument* update automatically every 5 seconds to reflect:
+
+- Connected players
+
+- Loaded worlds
+
+All updates are handled internally through ECMD’s scheduler — no extra setup or manual calls to tick() required.
 
 ---
 
@@ -119,8 +259,27 @@ class MyCommand extends BaseCommand {
 Each subcommand can:
 - Have its own arguments
 - Be restricted to console/player and both
-- Require a specific permission
-- Update dynamically for autocompletion
+- Require specific permissions
+- Include dynamic enums for autocomplete (players, worlds, etc.)
+- Sync automatically via AvailableCommandsPacketAssembler
+
+---
+
+## ⚡ Automatic Enum Refresh System
+
+All *StringEnumArgument* subclasses (like *PlayerArgument*, *WorldArgument*, etc.)
+register themselves automatically when instantiated.
+
+The ECMD scheduler:
+
+Finds all dynamic enum classes
+
+Calls *::tick()* for each one every 5 seconds
+
+Re-syncs updated command data to all players seamlessly
+
+
+✅ No need to manually register or manage your dynamic arguments — just extend *StringEnumArgument*.
 
 ---
 

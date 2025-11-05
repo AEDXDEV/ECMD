@@ -36,20 +36,29 @@ use pocketmine\Server;
 
 class WorldArgument extends StringEnumArgument{
 
+  private static array $lastWorlds = [];
+
   public function getTypeName(): string{
     return "world";
   }
 
   public function canParse(string $testString, CommandSender $sender): bool{
-    return Server::getInstance()->getWorldManager()->getWorldByName($testString) !== null;
+    return Server::getInstance()->getWorldManager()->getWorldByName(str_replace('"', '', $testString)) !== null;
   }
 
   public function getValue(string $string): mixed{
-    return Server::getInstance()->getWorldManager()->getWorldByName($string);
+    return Server::getInstance()->getWorldManager()->getWorldByName(str_replace('"', '', $string));
   }
   
   public static function tick(): void{
-    $worlds = array_map(fn(World $w) => $w->getFolderName(), Server::getInstance()->getWorldManager()->getWorlds());
-    static::$VALUES = array_combine($worlds, $worlds);
+    $worlds = array_map(
+      fn(World $w) => str_contains($w->getFolderName(), " ") ? ("\"" . $w->getFolderName() . "\"") : $w->getFolderName(),
+      Server::getInstance()->getWorldManager()->getWorlds()
+    );
+    if ($worlds !== static::$lastWorlds) {
+      static::$lastWorlds = $worlds;
+      static::$VALUES = array_combine($worlds, $worlds);
+      parent::tick();
+    }
   }
 }

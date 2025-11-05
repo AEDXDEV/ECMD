@@ -30,22 +30,28 @@ declare(strict_types=1);
 
 namespace AEDXDEV\ECMD;
 
-use AEDXDEV\ECMD\args\BaseArgument;
-use AEDXDEV\ECMD\args\PlayerArgument;
-use AEDXDEV\ECMD\args\ItemArgument;
-use AEDXDEV\ECMD\args\WorldArgument;
+use AEDXDEV\ECMD\args\{
+  BaseArgument,
+  PlayerArgument,
+  WorldArgument,
+  StringEnumArgument
+};
 
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\network\mcpe\NetworkSession;
 use pocketmine\network\mcpe\protocol\AvailableCommandsPacket;
+use pocketmine\network\mcpe\protocol\serializer\AvailableCommandsPacketAssembler;
+use pocketmine\network\mcpe\protocol\types\command\CommandData;
 use pocketmine\network\mcpe\protocol\types\command\CommandParameter;
-use pocketmine\network\mcpe\protocol\types\command\CommandEnum;
+use pocketmine\network\mcpe\protocol\types\command\CommandSoftEnum;
+use pocketmine\network\mcpe\protocol\types\command\CommandHardEnum;
 use pocketmine\network\mcpe\protocol\types\command\CommandOverload;
 use pocketmine\plugin\Plugin;
 use pocketmine\player\Player;
 use pocketmine\plugin\PluginOwned;
 use pocketmine\scheduler\ClosureTask;
+use pocketmine\Server;
 
 use muqsit\simplepackethandler\SimplePacketHandler;
 
@@ -106,55 +112,94 @@ abstract class BaseCommand extends Command implements PluginOwned{
     SimplePacketHandler::createInterceptor($this->plugin)->interceptOutgoing(function(AvailableCommandsPacket $pk, NetworkSession $session): bool{
       if (self::$isIntercepting)return true;
       if (($player = $session->getPlayer()) === null)return true;
-      if (isset($pk->commandData[$this->getName()])) {
-        $pk->commandData[$this->getName()]->overloads = $this->generateOverloads($player);
-      }
-      $pk->softEnums = [];
       self::$isIntercepting = true;
-			$session->sendDataPacket($pk);
-			self::$isIntercepting = false;
+      if (class_exists(AvailableCommandsPacketAssembler::class)) {
+        // PMMP 5.36+
+        $session->sendDataPacket(AvailableCommandsPacketAssembler::assemble([new CommandData(strtolower($this->getName()), $this->getDescription(), 0, 0, null, $this->generateOverloads($player), [])], [], []));
+      } else {
+        // Legacy PMMP
+        $session->sendDataPacket($pk);
+      }
+      self::$isIntercepting = false;
       return true;
     });
   }
 
   private function generateOverloads(Player $player): array{
+    $argToParam = function (BaseArgument $arg): CommandParameter{
+      $param = clone $arg->getNetworkParameterData();
+  		if ($param->enum !== null) {
+  			(fn() => $this->enumName = "enum#" . spl_object_id($param->enum))->call($param->enum);
+  		}
+  		return $param;
+    };
     $subOverloads = [];
     foreach ($this->subCommands as $name => $data) {
-      if (($data["constraint"] == self::CONSOLE_CONSTRAINT && $player instanceof Player) || ($data["constraint"] == self::IN_GAME_CONSTRAINT && !$player instanceof Player))continue;
+      if (
+				($data["constraint"] === self::CONSOLE_CONSTRAINT && $player instanceof Player) ||
+				($data["constraint"] === self::IN_GAME_CONSTRAINT && !$player instanceof Player)
+			) continue;
       if (!$player->hasPermission($data["permission"] ?? $this->getPermission()))continue;
-      $enum = new CommandEnum($name, [$name]);
+      $enum = new CommandHardEnum($name, [$name]);
       (fn() => $this->enumName = "enum#" . spl_object_id($enum))->call($enum);
-      $param = CommandParameter::enum($name, $enum, 0, false);
-      $subOverloads[] = new CommandOverload(false, [$param, ...array_map(fn($arg) => $this->createArgumentParam($arg, $player), $data["arguments"])]);
+      $param = CommandParameter::enum($name, $enum, CommandParameter::FLAG_FORCE_COLLAPSE_ENUM, false);
+      $subOverloads[] = new CommandOverload(false, [$param, ...array_map(fn($arg) => /*$this->createArgumentParam($arg)*/ $argToParam($arg), $data["arguments"])]);
     }
     return array_merge(
-      empty($this->arguments) ? [] : [new CommandOverload(false, array_map(fn($arg) => $this->createArgumentParam($arg, $player), $this->arguments))],
+      empty($this->arguments) ? [] : [new CommandOverload(false, array_map(fn($arg) => /*$this->createArgumentParam($arg)*/ $argToParam($arg), $this->arguments))],
       $subOverloads
     );
   }
 
-  private function createArgumentParam(BaseArgument $arg, Player $player): CommandParameter{
+  /*private function createArgumentParam(BaseArgument $arg): CommandParameter{
     $param = clone $arg->getNetworkParameterData();
     if ($param->enum) {
       (fn() => $this->enumName = "enum#" . spl_object_id($param->enum))->call($param->enum);
     }
     return $param;
-  }
-  
+  }*/
+
   public function registerTask(): void{
-    if (!self::$registeredTask) {
-      $this->plugin->getScheduler()->scheduleRepeatingTask(new ClosureTask(function (): void{
-        PlayerArgument::tick();
-        ItemArgument::tick();
-        WorldArgument::tick();
-        foreach (Server::getInstance()->getOnlinePlayers() as $p) {
-          $p->getNetworkSession()->syncAvailableCommands();
+    if (self::$registeredTask) return;
+
+    $this->plugin->getScheduler()->scheduleRepeatingTask(new ClosureTask(function(): void{
+        // ✅ تحدّث كل arguments الديناميكية المسجلة فقط
+        foreach (\AEDXDEV\ECMD\args\StringEnumArgument::getDynamicClasses() as $class) {
+            if (method_exists($class, 'tick')) {
+                try {
+                    $class::tick();
+                } catch (\Throwable $e) {
+                    // نتجاهل الأخطاء داخل tick الفردية
+                    $this->plugin->getLogger()->debug("Tick error in $class: " . $e->getMessage());
+                }
+            }
         }
-      }), 20 * 5);
-      self::$registeredTask = true;
-    }
+
+        // تحديث الـ commands عند كل لاعب
+        foreach (\pocketmine\Server::getInstance()->getOnlinePlayers() as $p) {
+            $p->getNetworkSession()->syncAvailableCommands();
+        }
+    }), 20 * 5);
+
+    self::$registeredTask = true;
+}
+
+  public function registerTask(): void{
+		if (self::$registeredTask)return;
+    $this->plugin->getScheduler()->scheduleRepeatingTask(new ClosureTask(function(): void{
+      // update dynamic enums
+      foreach (StringEnumArgument::getDynamicClasses() as $class) {
+        $class::tick();
+      }
+      //PlayerArgument::tick();
+      //WorldArgument::tick();
+      foreach (Server::getInstance()->getOnlinePlayers() as $p) {
+        $p->getNetworkSession()->syncAvailableCommands();
+      }
+    }), 20 * 5);
+    self::$registeredTask = true;
   }
-  
+
   public function registerArgument(int $position, BaseArgument $argument): void{
     if ($position < 0) {
       throw new InvalidArgumentException("Cannot register argument at negative position");
@@ -205,7 +250,7 @@ abstract class BaseCommand extends Command implements PluginOwned{
           $sender->sendMessage("§cYou can't use this command in-game");
           return false;
         } elseif ($subData["constraint"] == self::IN_GAME_CONSTRAINT && !$sender instanceof Player) {
-          $sender->sendMessage("§cUse this command in-game");
+          $sender->sendMessage("§cThis command must be used in-game");
           return false;
         }
         return $this->parseAndExecute($subData, $label, $args);

@@ -33,8 +33,19 @@ namespace AEDXDEV\ECMD\args;
 use pocketmine\command\CommandSender;
 use pocketmine\item\Item;
 use pocketmine\item\StringToItemParser;
+use pocketmine\network\mcpe\protocol\types\command\CommandEnum;
 
 class ItemArgument extends StringEnumArgument{
+
+  public function __construct(string $name, bool $optional = false) {
+    parent::__construct($name, $optional);
+    if (empty(static::$VALUES)) {
+      $items = StringToItemParser::getInstance()->getKnownAliases();
+      static::$VALUES = array_combine($items, $items);
+      $this->enum = new CommandEnum("", $this->getEnumValues(), false);
+      $this->getNetworkParameterData()->enum = $this->enum;
+    }
+  }
 
   public function getTypeName(): string{
     return "item";
@@ -46,10 +57,5 @@ class ItemArgument extends StringEnumArgument{
 
   public function getValue(string $string): mixed{
     return StringToItemParser::getInstance()->parse($string);
-  }
-  
-  public static function tick(): void{
-    $items = StringToItemParser::getInstance()->getKnownAliases();
-    static::$VALUES = array_combine($items, $items);
   }
 }
