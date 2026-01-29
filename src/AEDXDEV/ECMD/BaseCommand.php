@@ -1,7 +1,7 @@
 <?php
 
 /**
-  *  A free plugin for PocketMine-MP.
+  *  A free library for PocketMine-MP.
   *	
   *	Copyright (c) AEDXDEV
   *  
@@ -42,6 +42,7 @@ use pocketmine\command\CommandSender;
 use pocketmine\network\mcpe\NetworkSession;
 use pocketmine\network\mcpe\protocol\AvailableCommandsPacket;
 use pocketmine\network\mcpe\protocol\serializer\AvailableCommandsPacketAssembler;
+use pocketmine\network\mcpe\protocol\serializer\AvailableCommandsPacketDisassembler;
 use pocketmine\network\mcpe\protocol\types\command\CommandData;
 use pocketmine\network\mcpe\protocol\types\command\CommandParameter;
 use pocketmine\network\mcpe\protocol\types\command\CommandSoftEnum;
@@ -80,8 +81,9 @@ abstract class BaseCommand extends Command implements PluginOwned{
     parent::__construct($name, $description, null, $aliases);
     $this->prepare();
     $this->updateUsageMessage();
-    $this->registerPacketHook();
-    $this->registerTask();
+    PacketHooker::register($plugin);
+    //$this->registerPacketHook();
+    //$this->registerTask();
   }
 
   abstract protected function prepare(): void;
@@ -108,58 +110,68 @@ abstract class BaseCommand extends Command implements PluginOwned{
     $this->usageMessage = implode("\n - ", $usages);
   }
 
-  private function registerPacketHook(): void{
+  /*private function registerPacketHook(): void{
     SimplePacketHandler::createInterceptor($this->plugin)->interceptOutgoing(function(AvailableCommandsPacket $pk, NetworkSession $session): bool{
       if (self::$isIntercepting)return true;
       if (($player = $session->getPlayer()) === null)return true;
       self::$isIntercepting = true;
       if (class_exists(AvailableCommandsPacketAssembler::class)) {
         // PMMP 5.36+
-        $session->sendDataPacket(AvailableCommandsPacketAssembler::assemble([new CommandData(strtolower($this->getName()), $this->getDescription(), 0, 0, null, $this->generateOverloads($player), [])], [], []));
+        $disassembled = AvailableCommandsPacketDisassembler::disassemble($pk);
+        $list = $disassembled->commandData;
+        foreach ($list as $commandData) {
+          if (strtolower($commandData->getName()) !== strtolower($this->getName()))continue;
+          $commandData->overloads = $this->generateOverloads($player);
+          break;
+        }
+        $session->sendDataPacket(AvailableCommandsPacketAssembler::assemble($list, [], $disassembled->softEnums ?? []));
       } else {
         // Legacy PMMP
+        if (isset($pk->commandData[$this->getName()])) {
+          $pk->commandData[$this->getName()]->overloads = $this->generateOverloads($player);
+        }
+        $pk->softEnums = [];
         $session->sendDataPacket($pk);
       }
       self::$isIntercepting = false;
-      return true;
+      return false;
     });
-  }
+  }*/
 
-  private function generateOverloads(Player $player): array{
-    $argToParam = function (BaseArgument $arg): CommandParameter{
+  public function generateOverloads(Player $player): array{
+    $argsParams = function (BaseArgument $arg): CommandParameter{
       $param = clone $arg->getNetworkParameterData();
-  		if ($param->enum !== null) {
-  			(fn() => $this->enumName = "enum#" . spl_object_id($param->enum))->call($param->enum);
-  		}
+      if ($param->enum instanceof CommandHardEnum && $param->enum->getName() === "") {
+        $param->enum = new CommandHardEnum("enum#" . spl_object_id($param->enum), $param->enum->getValues());
+      }
   		return $param;
     };
-    $subOverloads = [];
+    $overloads = [];
     foreach ($this->subCommands as $name => $data) {
       if (
-				($data["constraint"] === self::CONSOLE_CONSTRAINT && $player instanceof Player) ||
+				//($data["constraint"] === self::CONSOLE_CONSTRAINT && $player instanceof Player) ||
+				($data["constraint"] === self::IN_GAME_CONSTRAINT && !$player instanceof Player) ||
 				($data["constraint"] === self::IN_GAME_CONSTRAINT && !$player instanceof Player)
-			) continue;
+			)continue;
       if (!$player->hasPermission($data["permission"] ?? $this->getPermission()))continue;
-      $enum = new CommandHardEnum($name, [$name]);
-      (fn() => $this->enumName = "enum#" . spl_object_id($enum))->call($enum);
-      $param = CommandParameter::enum($name, $enum, CommandParameter::FLAG_FORCE_COLLAPSE_ENUM, false);
-      $subOverloads[] = new CommandOverload(false, [$param, ...array_map(fn($arg) => /*$this->createArgumentParam($arg)*/ $argToParam($arg), $data["arguments"])]);
+      $param = CommandParameter::enum($name, new CommandHardEnum($name, [$name]), 0, false);
+      $overloads[] = new CommandOverload(false, [$param, ...array_map(fn($arg) => /*$this->createArgumentParam($arg)*/ $argsParams($arg), $data["arguments"])]);
     }
     return array_merge(
-      empty($this->arguments) ? [] : [new CommandOverload(false, array_map(fn($arg) => /*$this->createArgumentParam($arg)*/ $argToParam($arg), $this->arguments))],
-      $subOverloads
+      empty($this->arguments) ? [] : [new CommandOverload(false, array_map(fn($arg) => /*$this->createArgumentParam($arg)*/ $argsParams($arg), $this->arguments))],
+      $overloads
     );
   }
 
   /*private function createArgumentParam(BaseArgument $arg): CommandParameter{
     $param = clone $arg->getNetworkParameterData();
     if ($param->enum) {
-      (fn() => $this->enumName = "enum#" . spl_object_id($param->enum))->call($param->enum);
+      (fn() => $this->name = "enum#" . spl_object_id($param->enum))->call($param->enum);
     }
     return $param;
   }*/
 
-  public function registerTask(): void{
+  /*public function registerTask(): void{
 		if (self::$registeredTask)return;
     $this->plugin->getScheduler()->scheduleRepeatingTask(new ClosureTask(function(): void{
       // update dynamic enums
@@ -173,7 +185,7 @@ abstract class BaseCommand extends Command implements PluginOwned{
       }
     }), 20 * 5);
     self::$registeredTask = true;
-  }
+  }*/
 
   public function registerArgument(int $position, BaseArgument $argument): void{
     if ($position < 0) {

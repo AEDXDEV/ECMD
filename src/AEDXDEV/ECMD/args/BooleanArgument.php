@@ -1,7 +1,7 @@
 <?php
 
 /**
-  *  A free plugin for PocketMine-MP.
+  *  A free library for PocketMine-MP.
   *	
   *	Copyright (c) AEDXDEV
   *  
@@ -34,16 +34,16 @@ use pocketmine\command\CommandSender;
 
 class BooleanArgument extends StringEnumArgument{
 
-	protected array $VALUES = [
+	protected static array $VALUES = [
 		"true" => true,
 		"false" => false,
 	];
 
-	public function getTypeName(): string {
+	public function getTypeName(): string{
 		return "bool";
 	}
 
-	public function parse(string $argument, CommandSender $sender): mixed{
+	public function parse(string $argument, CommandSender $sender): bool{
 		return $this->getValue($argument);
 	}
 }

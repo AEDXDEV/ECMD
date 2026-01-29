@@ -1,7 +1,7 @@
 <?php
 
 /**
-  *  A free plugin for PocketMine-MP.
+  *  A free library for PocketMine-MP.
   *	
   *	Copyright (c) AEDXDEV
   *  
@@ -40,7 +40,7 @@ class IntegerArgument extends BaseArgument{
 		return AvailableCommandsPacket::ARG_TYPE_INT;
 	}
 
-	public function getTypeName(): string {
+	public function getTypeName(): string{
 		return "int";
 	}
 

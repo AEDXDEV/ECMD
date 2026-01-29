@@ -1,7 +1,7 @@
 <?php
 
 /**
-  *  A free plugin for PocketMine-MP.
+  *  A free library for PocketMine-MP.
   *	
   *	Copyright (c) AEDXDEV
   *  
@@ -37,25 +37,23 @@ use pocketmine\network\mcpe\protocol\types\command\CommandEnum;
 
 class ItemArgument extends StringEnumArgument{
 
+  protected static array $VALUES = [];
+
   public function __construct(string $name, bool $optional = false) {
-    parent::__construct($name, $optional);
     if (empty(static::$VALUES)) {
       $items = StringToItemParser::getInstance()->getKnownAliases();
       static::$VALUES = array_combine($items, $items);
-      $this->enum = new CommandEnum("", $this->getEnumValues(), false);
-      $this->getNetworkParameterData()->enum = $this->enum;
     }
-  }
-
-  public function getTypeName(): string{
-    return "item";
+    parent::__construct($name, $optional);
   }
 
   public function canParse(string $testString, CommandSender $sender): bool{
-    return StringToItemParser::getInstance()->parse($testString) !== null;
+    return StringToItemParser::getInstance()->parse(str_replace('"', '', $testString)) !== null;
   }
 
-  public function getValue(string $string): mixed{
-    return StringToItemParser::getInstance()->parse($string);
+  public function getValue(string $string): Item{
+    return StringToItemParser::getInstance()->parse(str_replace('"', '', $string));
   }
+
+  public static function tick(): void{}
 }

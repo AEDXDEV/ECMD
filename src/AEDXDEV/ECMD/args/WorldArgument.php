@@ -1,7 +1,7 @@
 <?php
 
 /**
-  *  A free plugin for PocketMine-MP.
+  *  A free library for PocketMine-MP.
   *	
   *	Copyright (c) AEDXDEV
   *  
@@ -36,17 +36,15 @@ use pocketmine\Server;
 
 class WorldArgument extends StringEnumArgument{
 
-  private static array $lastWorlds = [];
+  protected static array $VALUES = [];
 
-  public function getTypeName(): string{
-    return "world";
-  }
+  private static array $lastWorlds = [];
 
   public function canParse(string $testString, CommandSender $sender): bool{
     return Server::getInstance()->getWorldManager()->getWorldByName(str_replace('"', '', $testString)) !== null;
   }
 
-  public function getValue(string $string): mixed{
+  public function getValue(string $string): ?World{
     return Server::getInstance()->getWorldManager()->getWorldByName(str_replace('"', '', $string));
   }
   

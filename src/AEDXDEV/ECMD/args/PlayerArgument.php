@@ -1,7 +1,7 @@
 <?php
 
 /**
-  *  A free plugin for PocketMine-MP.
+  *  A free library for PocketMine-MP.
   *	
   *	Copyright (c) AEDXDEV
   *  
@@ -31,20 +31,19 @@ declare(strict_types=1);
 namespace AEDXDEV\ECMD\args;
 
 use pocketmine\command\CommandSender;
+
 use pocketmine\player\Player;
 use pocketmine\Server;
 
 class PlayerArgument extends StringEnumArgument{
 
-  public function getTypeName(): string{
-    return "string";
-  }
+  protected static array $VALUES = [];
 
   public function canParse(string $testString, CommandSender $sender): bool{
     return Server::getInstance()->getPlayerExact(str_replace('"', '', $testString)) !== null;
   }
 
-  public function getValue(string $string): mixed{
+  public function getValue(string $string): Player{
     return Server::getInstance()->getPlayerExact(str_replace('"', '', $string));
   }
   
