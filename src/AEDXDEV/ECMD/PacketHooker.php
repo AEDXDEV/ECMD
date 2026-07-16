@@ -47,7 +47,7 @@ final class PacketHooker{
         // Legacy PMMP
         foreach ($pk->commandData as $cmdData) {
           if (!($cmd = Server::getInstance()->getCommandMap()->getCommand($cmdData->getName())) instanceof BaseCommand)continue;
-            $pk->commandData[$this->getName()]->overloads = $cmd->generateOverloads($player);
+            $pk->commandData[$cmdData->getName()]->overloads = $cmd->generateOverloads($player);
         }
         $pk->softEnums = [];
         self::$intercepting = true;
@@ -56,19 +56,13 @@ final class PacketHooker{
       }
       return false;
     });
-    
     $plugin->getScheduler()->scheduleRepeatingTask(new ClosureTask(function(): void{
       // update dynamic enums
-      foreach (StringEnumArgument::getDynamicClasses() as $class) {
-        $class::tick();
-      }
+      foreach (StringEnumArgument::getDynamicClasses() as $class)$class::tick();
       //PlayerArgument::tick();
       //WorldArgument::tick();
-      foreach (Server::getInstance()->getOnlinePlayers() as $p) {
-        $p->getNetworkSession()->syncAvailableCommands();
-      }
+      foreach (Server::getInstance()->getOnlinePlayers() as $p)$p->getNetworkSession()->syncAvailableCommands();
     }), 20 * 5);
-    
     self::$registered = true;
   }
 }

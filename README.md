@@ -241,7 +241,7 @@ All updates are handled internally through ECMD’s scheduler — no extra setup
 ## 📚 Argument Types
 | Type             | Class                      | Example           |
 |------------------|----------------------------|-------------------|
-| String            | `StringArgument`          | "PocketMine"      |
+| String            | `RawStringArgument`          | "PocketMine"      |
 | Text              | `TextArgument`            | "Hello world!"    |
 | Integer           | `IntegerArgument`         | 42                |
 | Float             | `FloatArgument`           | 3.14              |

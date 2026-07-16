@@ -149,7 +149,7 @@ abstract class BaseCommand extends Command implements PluginOwned{
     $overloads = [];
     foreach ($this->subCommands as $name => $data) {
       if (
-				//($data["constraint"] === self::CONSOLE_CONSTRAINT && $player instanceof Player) ||
+				($data["constraint"] === self::CONSOLE_CONSTRAINT && $player instanceof Player) ||
 				($data["constraint"] === self::IN_GAME_CONSTRAINT && !$player instanceof Player) ||
 				($data["constraint"] === self::IN_GAME_CONSTRAINT && !$player instanceof Player)
 			)continue;
@@ -188,15 +188,9 @@ abstract class BaseCommand extends Command implements PluginOwned{
   }*/
 
   public function registerArgument(int $position, BaseArgument $argument): void{
-    if ($position < 0) {
-      throw new InvalidArgumentException("Cannot register argument at negative position");
-    }
-    if ($position > 0 && !isset($this->arguments[$position - 1])) {
-      throw new InvalidArgumentException("Argument at position $position requires previous arguments");
-    }
-    if (isset($this->arguments[$position - 1]) && $this->arguments[$position - 1]->isOptional() && !$argument->isOptional()) {
-      throw new LogicException("Cannot register required argument after optional");
-    }
+    if ($position < 0)throw new InvalidArgumentException("Cannot register argument at negative position");
+    if ($position > 0 && !isset($this->arguments[$position - 1]))throw new InvalidArgumentException("Argument at position $position requires previous arguments");
+    if (isset($this->arguments[$position - 1]) && $this->arguments[$position - 1]->isOptional() && !$argument->isOptional())throw new LogicException("Cannot register required argument after optional");
     $this->arguments[$position] = $argument;
     ksort($this->arguments);
   }
@@ -208,10 +202,9 @@ abstract class BaseCommand extends Command implements PluginOwned{
     ?string $permission = null,
     int $constraint = self::ALL_CONSTRAINT
   ): void{
-    foreach ($arguments as $arg) {
-      if (!$arg instanceof BaseArgument) {
-        throw new InvalidArgumentException("All arguments must be instances of BaseArgument");
-      }
+    foreach ($arguments as $position => $arg) {
+      if (!$arg instanceof BaseArgument)throw new InvalidArgumentException("All arguments must be instances of BaseArgument");
+      if (isset($arguments[$position - 1]) && $arguments[$position - 1]->isOptional() && !$arg->isOptional())throw new LogicException("Cannot register required argument after optional");
     }
     $this->subCommands[$name] = [
       "callback" => $callback,
@@ -289,9 +282,7 @@ abstract class BaseCommand extends Command implements PluginOwned{
   private function sendPermissionError(): void{
     if (($msg = $this->getPermissionMessage()) === null) {
       $this->currentSender->sendMessage("§c" . $this->currentSender->getServer()->getLanguage()->translateString("%commands.generic.permission"));
-    } elseif (!empty($msg)) {
-      $this->currentSender->sendMessage(str_replace("<permission>", $this->getPermission(), $msg));
-    }
+    } elseif (!empty($msg)) $this->currentSender->sendMessage(str_replace("<permission>", $this->getPermission(), $msg));
   }
 
   abstract public function onRun(CommandSender $sender, string $aliasUsed, array $args): void;
@@ -307,5 +298,4 @@ abstract class BaseCommand extends Command implements PluginOwned{
 	public function getOwningPlugin(): Plugin{
     return $this->plugin;
   }
-
 }
